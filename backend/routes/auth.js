@@ -40,7 +40,8 @@ router.post('/register', async (req, res) => {
         id: user._id,
         email: user.email,
         firstName: user.firstName,
-        lastName: user.lastName
+        lastName: user.lastName,
+        isAdmin: user.isAdmin
       }
     });
   } catch (error) {
@@ -80,7 +81,8 @@ router.post('/login', async (req, res) => {
         id: user._id,
         email: user.email,
         firstName: user.firstName,
-        lastName: user.lastName
+        lastName: user.lastName,
+        isAdmin: user.isAdmin
       }
     });
   } catch (error) {
@@ -98,6 +100,7 @@ router.get('/me', auth, async (req, res) => {
         email: req.user.email,
         firstName: req.user.firstName,
         lastName: req.user.lastName,
+        isAdmin: req.user.isAdmin,
         preferences: req.user.preferences
       }
     });

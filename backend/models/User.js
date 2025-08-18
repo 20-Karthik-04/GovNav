@@ -24,6 +24,11 @@ const userSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
+  role: {
+    type: String,
+    enum: ['user', 'admin'],
+    default: 'user'
+  },
   preferences: {
     emailNotifications: {
       type: Boolean,
@@ -33,6 +38,14 @@ const userSchema = new mongoose.Schema({
       type: String,
       enum: ['general', 'health', 'education', 'employment', 'taxation', 'legal']
     }]
+  },
+  isAdmin: {
+    type: Boolean,
+    default: false
+  },
+  lastNotificationCheck: {
+    type: Date,
+    default: Date.now
   }
 }, {
   timestamps: true

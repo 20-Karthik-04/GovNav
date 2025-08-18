@@ -138,7 +138,10 @@ const Register = () => {
         </form>
         
         <div className="auth-link">
-          Already have an account? <Link to="/login">Login here</Link>
+          <p>Already have an account? <Link to="/login">User Login</Link></p>
+          <p style={{ marginTop: '10px' }}>
+            <Link to="/admin-login">🔐 Admin Login</Link>
+          </p>
         </div>
       </div>
     </div>

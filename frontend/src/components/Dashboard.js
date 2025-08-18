@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import axios from '../config/axios';
 import { useAuth } from '../contexts/AuthContext';
 
 const Dashboard = () => {
@@ -10,6 +10,7 @@ const Dashboard = () => {
   const [scraping, setScraping] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [newNotificationsCount, setNewNotificationsCount] = useState(0);
   const [pagination, setPagination] = useState({
     current: 1,
     total: 1,
@@ -24,6 +25,11 @@ const Dashboard = () => {
   useEffect(() => {
     fetchNotifications();
     fetchStats();
+    checkForUpdates();
+    
+    // Check for updates every 30 seconds
+    const interval = setInterval(checkForUpdates, 30000);
+    return () => clearInterval(interval);
   }, [filters]);
 
   const fetchNotifications = async () => {
@@ -61,18 +67,32 @@ const Dashboard = () => {
     }
   };
 
-  const handleScrape = async () => {
+  const checkForUpdates = async () => {
+    try {
+      const response = await axios.get('/api/notifications/updates');
+      setNewNotificationsCount(response.data.count);
+    } catch (error) {
+      console.error('Error checking for updates:', error);
+    }
+  };
+
+  const handleUpdate = async () => {
     setScraping(true);
     setError('');
     setSuccess('');
     
     try {
-      const response = await axios.post('/api/notifications/scrape');
-      setSuccess(`Successfully scraped ${response.data.newNotifications} new notifications!`);
-      fetchNotifications();
-      fetchStats();
+      // Mark notifications as checked
+      await axios.post('/api/notifications/mark-checked');
+      
+      // Refresh notifications list
+      await fetchNotifications();
+      await fetchStats();
+      
+      setNewNotificationsCount(0);
+      setSuccess('Notifications updated successfully!');
     } catch (error) {
-      setError(error.response?.data?.message || 'Failed to scrape notifications');
+      setError(error.response?.data?.message || 'Failed to update notifications');
     } finally {
       setScraping(false);
     }
@@ -107,11 +127,11 @@ const Dashboard = () => {
         
         <div className="dashboard-actions">
           <button 
-            onClick={handleScrape} 
-            className="btn btn-success"
+            onClick={handleUpdate} 
+            className={`btn btn-success ${newNotificationsCount > 0 ? 'has-updates' : ''}`}
             disabled={scraping}
           >
-            {scraping ? 'Updating...' : '🔄 Update Notifications'}
+            {scraping ? 'Updating...' : `🔄 Update ${newNotificationsCount > 0 ? `(${newNotificationsCount} new)` : ''}`}
           </button>
         </div>
       </div>
@@ -174,10 +194,10 @@ const Dashboard = () => {
         <div className="notifications-list">
           {notifications.length === 0 ? (
             <div className="card" style={{ textAlign: 'center', padding: '40px' }}>
-              <h3>Welcome to Your Personal Dashboard</h3>
-              <p>You haven't scraped any data yet. Click "Update Notifications" to start collecting information from websites.</p>
+              <h3>Welcome to Your Dashboard</h3>
+              <p>No notifications available yet. The admin will add new notifications by scraping government websites.</p>
               <p style={{ fontSize: '14px', color: '#666', marginTop: '20px' }}>
-                📌 Your data is private - only you can see the notifications you scrape.
+                📌 All notifications from the database are displayed here. Click "Update" to check for new notifications.
               </p>
             </div>
           ) : (
@@ -191,6 +211,9 @@ const Dashboard = () => {
                       <span>📅 {formatDate(notification.publishedDate)}</span>
                       <span>⏱️ {notification.metadata?.readingTime || 1} min read</span>
                       <span>🔗 {notification.sourceDomain}</span>
+                      {notification.scrapedBy && (
+                        <span>👤 Added by: {notification.scrapedBy.firstName} {notification.scrapedBy.lastName}</span>
+                      )}
                     </div>
                   </div>
                 </div>

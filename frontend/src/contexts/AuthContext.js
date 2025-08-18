@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import axios from 'axios';
+import axios from '../config/axios';
 
 const AuthContext = createContext();
 
@@ -31,6 +31,7 @@ export const AuthProvider = ({ children }) => {
       if (token) {
         try {
           const response = await axios.get('/api/auth/me');
+          console.log('Auth check response:', response.data.user);
           setUser(response.data.user);
         } catch (error) {
           console.error('Auth check failed:', error);
@@ -47,11 +48,15 @@ export const AuthProvider = ({ children }) => {
     try {
       const response = await axios.post('/api/auth/login', { email, password });
       const { token: newToken, user: userData } = response.data;
-      
+
+      console.log('🔍 LOGIN - User data received:', userData);
+      console.log('🔍 LOGIN - isAdmin:', userData.isAdmin);
+      console.log('🔍 LOGIN - role:', userData.role);
+
       localStorage.setItem('token', newToken);
       setToken(newToken);
       setUser(userData);
-      
+
       return { success: true };
     } catch (error) {
       return {
@@ -65,11 +70,11 @@ export const AuthProvider = ({ children }) => {
     try {
       const response = await axios.post('/api/auth/register', userData);
       const { token: newToken, user: newUser } = response.data;
-      
+
       localStorage.setItem('token', newToken);
       setToken(newToken);
       setUser(newUser);
-      
+
       return { success: true };
     } catch (error) {
       return {

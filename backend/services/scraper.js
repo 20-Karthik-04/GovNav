@@ -3,8 +3,22 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 class GovernmentScraper {
   constructor() {
-    this.genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    this.model = this.genAI.getGenerativeModel({ model: "gemma-3-1b-it" });
+    // Validate API key exists
+    if (!process.env.GEMINI_API_KEY) {
+      console.warn('GEMINI_API_KEY not found. AI summarization will use fallback method.');
+      this.genAI = null;
+      this.model = null;
+    } else {
+      try {
+        this.genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+        this.model = this.genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+        console.log('Google Generative AI initialized successfully');
+      } catch (error) {
+        console.error('Failed to initialize Google Generative AI:', error);
+        this.genAI = null;
+        this.model = null;
+      }
+    }
 
     // Crawler state management
     this.visitedUrls = new Set();
@@ -14,12 +28,12 @@ class GovernmentScraper {
     this.crawledPages = 0;
     this.baseUrl = null;
     this.allowedDomains = new Set();
-    
+
     // Rate limiting for AI API
     this.aiRequestCount = 0;
     this.aiRequestWindow = Date.now();
     this.maxAiRequestsPerMinute = 25; // Stay under 30 limit
-    
+
     // Legal compliance features
     this.robotsCache = new Map();
     this.crawlStats = {
@@ -48,18 +62,18 @@ class GovernmentScraper {
     this.maxPages = maxPages;
     this.baseUrl = new URL(startUrl);
     this.allowedDomains = new Set([this.baseUrl.hostname, ...allowedDomains]);
-    
+
     // Initialize crawl stats
     this.crawlStats.startTime = new Date();
     this.crawlStats.totalRequests = 0;
     this.crawlStats.successfulRequests = 0;
     this.crawlStats.failedRequests = 0;
     this.crawlStats.visitedDomains.add(this.baseUrl.hostname);
-    
+
     // Legal compliance check
     console.log('🔍 Starting legal compliance checks...');
     await this.checkLegalCompliance(startUrl);
-    
+
     // Check robots.txt before crawling
     const robotsAllowed = await this.checkRobotsTxt(startUrl);
     if (!robotsAllowed) {
@@ -70,7 +84,7 @@ class GovernmentScraper {
     this.visitedUrls.clear();
     this.urlQueue = [{ url: startUrl, depth: 0 }];
     this.crawledPages = 0;
-    
+
     // Determine appropriate delay
     const crawlDelay = delay || this.determineDelay(this.baseUrl.hostname);
     console.log(`⏱️ Using ${crawlDelay}ms delay for ${this.baseUrl.hostname}`);
@@ -80,7 +94,7 @@ class GovernmentScraper {
 
     try {
       browser = await chromium.launch({ headless: true });
-      
+
       // Create context with User-Agent
       const context = await browser.newContext({
         userAgent: this.userAgent,
@@ -124,7 +138,7 @@ class GovernmentScraper {
             console.log(`⏳ Waiting ${crawlDelay}ms before next request...`);
             await new Promise(resolve => setTimeout(resolve, crawlDelay));
           }
-          
+
           this.crawlStats.successfulRequests++;
 
         } catch (error) {
@@ -132,14 +146,14 @@ class GovernmentScraper {
           this.visitedUrls.add(url); // Mark as visited to avoid retry
           this.crawlStats.failedRequests++;
         }
-        
+
         this.crawlStats.totalRequests++;
       }
 
       // Finalize crawl stats
       this.crawlStats.endTime = new Date();
       const duration = this.crawlStats.endTime - this.crawlStats.startTime;
-      
+
       console.log('📊 Crawl Statistics:');
       console.log(`   Duration: ${Math.round(duration / 1000)}s`);
       console.log(`   Total Requests: ${this.crawlStats.totalRequests}`);
@@ -148,7 +162,7 @@ class GovernmentScraper {
       console.log(`   Pages Crawled: ${this.crawledPages}`);
       console.log(`   Notifications Found: ${allNotifications.length}`);
       console.log(`   Domains Visited: ${Array.from(this.crawlStats.visitedDomains).join(', ')}`);
-      
+
       return {
         notifications: allNotifications,
         crawlStats: {
@@ -216,16 +230,16 @@ class GovernmentScraper {
         const extractHackerNewsContent = () => {
           const stories = [];
           const storyRows = document.querySelectorAll('.athing');
-          
+
           storyRows.forEach((row, index) => {
             if (index >= 30) return; // Limit to 30 stories
-            
+
             const titleElement = row.querySelector('.titleline > a');
             const scoreElement = row.nextElementSibling?.querySelector('.score');
             const commentsElement = row.nextElementSibling?.querySelector('a[href*="item?id="]:last-child');
             const ageElement = row.nextElementSibling?.querySelector('.age');
             const authorElement = row.nextElementSibling?.querySelector('.hnuser');
-            
+
             if (titleElement) {
               const title = titleElement.textContent?.trim();
               const url = titleElement.href;
@@ -233,8 +247,10 @@ class GovernmentScraper {
               const comments = commentsElement?.textContent?.trim() || '0 comments';
               const age = ageElement?.textContent?.trim() || 'unknown';
               const author = authorElement?.textContent?.trim() || 'unknown';
-              
-              if (title && title.length > 5) {
+
+              if (title &&
+                title.length > 5) {
+
                 stories.push({
                   title: title,
                   content: `${score} by ${author} ${age} | ${comments}`,
@@ -245,7 +261,7 @@ class GovernmentScraper {
               }
             }
           });
-          
+
           return stories;
         };
 
@@ -253,22 +269,24 @@ class GovernmentScraper {
         const extractBooksContent = () => {
           const books = [];
           const bookElements = document.querySelectorAll('article.product_pod');
-          
+
           bookElements.forEach((element, index) => {
             if (index >= 50) return;
-            
+
             const titleElement = element.querySelector('h3 a');
             const priceElement = element.querySelector('.price_color');
             const imageElement = element.querySelector('img');
             const ratingElement = element.querySelector('[class*="star-rating"]');
-            
+
             if (titleElement) {
               const title = titleElement.getAttribute('title') || titleElement.textContent?.trim();
               const price = priceElement?.textContent?.trim();
               const imageUrl = imageElement?.src;
               const rating = ratingElement?.className.match(/star-rating (\w+)/)?.[1];
-              
-              if (title && title.length > 3) {
+
+              if (title &&
+                title.length > 3) {
+
                 books.push({
                   title: title,
                   content: `Price: ${price || 'N/A'}, Rating: ${rating || 'N/A'}`,
@@ -280,7 +298,7 @@ class GovernmentScraper {
               }
             }
           });
-          
+
           return books;
         };
 
@@ -302,27 +320,27 @@ class GovernmentScraper {
             if (elements.length > 0) {
               elements.forEach((element, index) => {
                 if (index >= 30 || !isContentElement(element)) return;
-                
-                const titleElement = element.querySelector('h1, h2, h3, h4, h5, h6, .title, .heading') || 
-                                   element.querySelector('a');
+
+                const titleElement = element.querySelector('h1, h2, h3, h4, h5, h6, .title, .heading') ||
+                  element.querySelector('a');
                 const contentElement = element.querySelector('p, .content, .description, .summary, .excerpt') || element;
                 const linkElement = element.querySelector('a') || element.closest('a');
                 const imageElement = element.querySelector('img');
-                
+
                 if (titleElement) {
                   const title = titleElement.textContent?.trim();
                   const content = contentElement.textContent?.trim();
                   const href = linkElement?.href;
                   const imageUrl = imageElement?.src;
-                  
+
                   // Enhanced quality filters
-                  if (title && 
-                      title.length > 10 && 
-                      title.length < 300 && 
-                      content && content.length > 20 &&
-                      !isMetadataText(title) &&
-                      !isNavigationText(title)) {
-                    
+                  if (title &&
+                    title.length > 10 &&
+                    title.length < 300 &&
+                    content && content.length > 20 &&
+                    !isMetadataText(title) &&
+                    !isNavigationText(title)) {
+
                     extractedItems.push({
                       title: title.substring(0, 200),
                       content: content.substring(0, 1000),
@@ -370,18 +388,18 @@ class GovernmentScraper {
 
           textElements.forEach((element, index) => {
             if (index >= 20 || !isContentElement(element)) return;
-            
+
             const text = element.textContent?.trim();
             if (text &&
-                text.length > 15 &&
-                text.length < 300 &&
-                !isMetadataText(text) &&
-                !isNavigationText(text)) {
+              text.length > 15 &&
+              text.length < 300 &&
+              !isMetadataText(text) &&
+              !isNavigationText(text)) {
 
-              const nearbyContent = element.nextElementSibling?.textContent?.trim() || 
-                                  element.parentElement?.textContent?.trim() || text;
+              const nearbyContent = element.nextElementSibling?.textContent?.trim() ||
+                element.parentElement?.textContent?.trim() || text;
               const nearbyLink = element.querySelector('a') || element.closest('a');
-              
+
               meaningfulTexts.push({
                 title: text,
                 content: nearbyContent.substring(0, 500),
@@ -490,32 +508,32 @@ class GovernmentScraper {
     }
   }
 
-  // Legacy method for backward compatibility
-  async scrapeGovernmentSite(url = 'https://www.nhs.uk/') {
-    const result = await this.crawlGovernmentSite(url, { maxDepth: 1, maxPages: 1 });
-    return result.notifications;
-  }
-
-  async summarizeContent(content, title) {
-    // Check rate limit
-    const now = Date.now();
-    if (now - this.aiRequestWindow > 60000) {
-      // Reset window every minute
-      this.aiRequestWindow = now;
-      this.aiRequestCount = 0;
-    }
-    
-    if (this.aiRequestCount >= this.maxAiRequestsPerMinute) {
-      console.log('AI rate limit reached, using fallback summary');
+  async summarizeContent(content, title = '') {
+    // If no AI model available, use fallback immediately
+    if (!this.model) {
+      console.log('AI model not available, using fallback summary');
       return this.generateFallbackSummary(content, title);
     }
-    
+
     try {
+      // Rate limiting check
+      const now = Date.now();
+      if (now - this.aiRequestWindow > 60000) {
+        this.aiRequestCount = 0;
+        this.aiRequestWindow = now;
+      }
+
+      if (this.aiRequestCount >= this.maxAiRequestsPerMinute) {
+        console.log('AI rate limit reached, using fallback summary');
+        return this.generateFallbackSummary(content, title);
+      }
+
       this.aiRequestCount++;
-      const prompt = `Please provide a 2-3 sentence plain-language summary of this government notification:
+
+      const prompt = `Summarize this government notification/content in 2-3 sentences:
 
 Title: ${title}
-Content: ${content}
+Content: ${content.substring(0, 2000)}
 
 Summary should be:
 - Easy to understand for general public
@@ -531,33 +549,73 @@ Summary should be:
       return this.generateFallbackSummary(content, title);
     }
   }
-  
+
   generateFallbackSummary(content, title) {
     // Create a simple summary without AI
     const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 20);
     const firstTwoSentences = sentences.slice(0, 2).join('. ').trim();
-    
+
     if (firstTwoSentences.length > 10) {
       return firstTwoSentences + (firstTwoSentences.endsWith('.') ? '' : '.');
     }
-    
+
     // Fallback to truncation
     return content.length > 200 ? content.substring(0, 200) + '...' : content;
   }
 
   categorizeNotification(title, content) {
-    const text = (title + ' ' + content).toLowerCase();
+    const text = `${title} ${content}`.toLowerCase();
 
-    if (text.includes('health') || text.includes('medical') || text.includes('hospital')) {
-      return 'health';
-    } else if (text.includes('education') || text.includes('school') || text.includes('university')) {
-      return 'education';
-    } else if (text.includes('job') || text.includes('employment') || text.includes('recruitment')) {
-      return 'employment';
-    } else if (text.includes('tax') || text.includes('income') || text.includes('gst')) {
-      return 'taxation';
-    } else if (text.includes('legal') || text.includes('court') || text.includes('law')) {
-      return 'legal';
+    // Enhanced categorization with more keywords and patterns
+    const categories = {
+      health: [
+        'health', 'medical', 'hospital', 'doctor', 'medicine', 'vaccine', 'covid', 'disease',
+        'healthcare', 'clinic', 'treatment', 'patient', 'drug', 'pharmacy', 'wellness',
+        'mental health', 'ayush', 'medical college', 'nursing', 'ambulance'
+      ],
+      education: [
+        'education', 'school', 'college', 'university', 'student', 'exam', 'admission',
+        'scholarship', 'degree', 'certificate', 'academic', 'learning', 'teacher',
+        'faculty', 'curriculum', 'ugc', 'cbse', 'icse', 'board', 'entrance'
+      ],
+      employment: [
+        'job', 'employment', 'recruitment', 'vacancy', 'career', 'hiring', 'work',
+        'salary', 'wage', 'pension', 'retirement', 'ssc', 'upsc', 'railway',
+        'government job', 'application', 'interview', 'selection', 'posting'
+      ],
+      taxation: [
+        'tax', 'gst', 'income tax', 'return', 'refund', 'assessment', 'compliance',
+        'tds', 'advance tax', 'penalty', 'notice', 'audit', 'exemption',
+        'deduction', 'itr', 'pan', 'aadhaar', 'financial'
+      ],
+      legal: [
+        'legal', 'court', 'law', 'act', 'rule', 'regulation', 'policy', 'order',
+        'judgment', 'case', 'litigation', 'advocate', 'lawyer', 'justice',
+        'supreme court', 'high court', 'tribunal', 'amendment', 'bill'
+      ],
+      welfare: [
+        'welfare', 'scheme', 'benefit', 'subsidy', 'allowance', 'grant', 'aid',
+        'support', 'assistance', 'relief', 'compensation', 'pension', 'insurance',
+        'social security', 'disability', 'widow', 'elderly', 'child'
+      ],
+      infrastructure: [
+        'infrastructure', 'road', 'bridge', 'transport', 'railway', 'airport',
+        'port', 'construction', 'development', 'project', 'tender', 'contract',
+        'electricity', 'water', 'sewage', 'metro', 'bus'
+      ],
+      agriculture: [
+        'agriculture', 'farmer', 'crop', 'farming', 'irrigation', 'fertilizer',
+        'seed', 'harvest', 'rural', 'village', 'kisan', 'mandi', 'procurement',
+        'subsidy', 'loan', 'weather', 'drought', 'flood'
+      ]
+    };
+
+    // Check each category for matches
+    for (const [category, keywords] of Object.entries(categories)) {
+      const matchCount = keywords.filter(keyword => text.includes(keyword)).length;
+      if (matchCount > 0) {
+        return category;
+      }
     }
 
     return 'general';
@@ -574,34 +632,34 @@ Summary should be:
     try {
       const baseUrl = new URL(url);
       const robotsUrl = `${baseUrl.protocol}//${baseUrl.hostname}/robots.txt`;
-      
+
       // Check cache first
       if (this.robotsCache.has(baseUrl.hostname)) {
         console.log(`🤖 Using cached robots.txt for ${baseUrl.hostname}`);
         return this.robotsCache.get(baseUrl.hostname);
       }
-      
+
       console.log(`🤖 Checking robots.txt: ${robotsUrl}`);
-      
+
       const response = await fetch(robotsUrl, {
         headers: { 'User-Agent': this.userAgent }
       });
-      
+
       if (!response.ok) {
         console.log(`⚠️ No robots.txt found for ${baseUrl.hostname}, assuming allowed`);
         this.robotsCache.set(baseUrl.hostname, true);
         return true;
       }
-      
+
       const robotsText = await response.text();
       const isAllowed = this.parseRobotsTxt(robotsText, url);
-      
+
       this.robotsCache.set(baseUrl.hostname, isAllowed);
       this.crawlStats.robotsChecked.push({ domain: baseUrl.hostname, allowed: isAllowed });
-      
+
       console.log(`🤖 Robots.txt check for ${baseUrl.hostname}: ${isAllowed ? '✅ Allowed' : '❌ Disallowed'}`);
       return isAllowed;
-      
+
     } catch (error) {
       console.log(`⚠️ Error checking robots.txt: ${error.message}, assuming allowed`);
       return true;
@@ -612,13 +670,13 @@ Summary should be:
     const lines = robotsText.split('\n').map(line => line.trim());
     let currentUserAgent = '';
     let isRelevantSection = false;
-    
+
     for (const line of lines) {
       if (line.startsWith('User-agent:')) {
         currentUserAgent = line.split(':')[1].trim().toLowerCase();
-        isRelevantSection = currentUserAgent === '*' || 
-                           currentUserAgent === 'civicspherebot' ||
-                           currentUserAgent.includes('bot');
+        isRelevantSection = currentUserAgent === '*' ||
+          currentUserAgent === 'civicspherebot' ||
+          currentUserAgent.includes('bot');
       } else if (isRelevantSection && line.startsWith('Disallow:')) {
         const disallowPath = line.split(':')[1].trim();
         if (disallowPath === '/' || targetUrl.includes(disallowPath)) {
@@ -632,49 +690,49 @@ Summary should be:
         }
       }
     }
-    
+
     return true;
   }
 
   determineDelay(hostname) {
     const governmentDomains = ['.gov', '.gov.in', '.gov.uk', '.europa.eu', '.gc.ca'];
     const isGovernment = governmentDomains.some(domain => hostname.includes(domain));
-    
+
     if (isGovernment) {
       console.log(`🏛️ Government domain detected: ${hostname}`);
       return this.governmentDelayMs;
     }
-    
+
     return this.regularDelayMs;
   }
 
   async checkLegalCompliance(url) {
     const baseUrl = new URL(url);
     const domain = baseUrl.hostname;
-    
+
     console.log('⚖️ Legal Compliance Check:');
     console.log(`   Target: ${domain}`);
     console.log(`   User-Agent: ${this.userAgent}`);
     console.log(`   Purpose: Government transparency and civic engagement`);
-    
+
     // Check for government domains
     const governmentDomains = ['.gov', '.gov.in', '.gov.uk', '.europa.eu', '.gc.ca'];
     const isGovernment = governmentDomains.some(d => domain.includes(d));
-    
+
     if (isGovernment) {
       console.log('🏛️ Government domain detected - using enhanced compliance measures');
       console.log('   - Increased delays (3+ seconds)');
       console.log('   - Respectful crawling patterns');
       console.log('   - Comprehensive logging');
     }
-    
+
     // Legal warnings
     console.log('⚠️ Legal Reminders:');
     console.log('   - Ensure compliance with local cyber laws');
     console.log('   - Respect rate limits and robots.txt');
     console.log('   - Use data responsibly for civic purposes');
     console.log('   - Consider official APIs when available');
-    
+
     return true;
   }
 }

@@ -23,8 +23,18 @@ const Header = () => {
           <nav className="nav">
             {user ? (
               <div className="user-menu">
+                <div className="nav-links">
+                  {user.role === 'admin' ? (
+                    <>
+                      <Link to="/admin" className="nav-link">Admin Panel</Link>
+                      <Link to="/dashboard" className="nav-link">User View</Link>
+                    </>
+                  ) : (
+                    <Link to="/dashboard" className="nav-link">Dashboard</Link>
+                  )}
+                </div>
                 <span className="user-greeting">
-                  Welcome, {user.firstName}
+                  Welcome, {user.firstName} {user.role === 'admin' && '(Admin)'}
                 </span>
                 <button onClick={handleLogout} className="btn btn-secondary">
                   Logout
