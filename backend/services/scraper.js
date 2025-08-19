@@ -566,59 +566,100 @@ Summary should be:
   categorizeNotification(title, content) {
     const text = `${title} ${content}`.toLowerCase();
 
-    // Enhanced categorization with more keywords and patterns
+    // Enhanced categorization with weighted keywords and scoring
     const categories = {
-      health: [
-        'health', 'medical', 'hospital', 'doctor', 'medicine', 'vaccine', 'covid', 'disease',
-        'healthcare', 'clinic', 'treatment', 'patient', 'drug', 'pharmacy', 'wellness',
-        'mental health', 'ayush', 'medical college', 'nursing', 'ambulance'
-      ],
-      education: [
-        'education', 'school', 'college', 'university', 'student', 'exam', 'admission',
-        'scholarship', 'degree', 'certificate', 'academic', 'learning', 'teacher',
-        'faculty', 'curriculum', 'ugc', 'cbse', 'icse', 'board', 'entrance'
-      ],
-      employment: [
-        'job', 'employment', 'recruitment', 'vacancy', 'career', 'hiring', 'work',
-        'salary', 'wage', 'pension', 'retirement', 'ssc', 'upsc', 'railway',
-        'government job', 'application', 'interview', 'selection', 'posting'
-      ],
-      taxation: [
-        'tax', 'gst', 'income tax', 'return', 'refund', 'assessment', 'compliance',
-        'tds', 'advance tax', 'penalty', 'notice', 'audit', 'exemption',
-        'deduction', 'itr', 'pan', 'aadhaar', 'financial'
-      ],
-      legal: [
-        'legal', 'court', 'law', 'act', 'rule', 'regulation', 'policy', 'order',
-        'judgment', 'case', 'litigation', 'advocate', 'lawyer', 'justice',
-        'supreme court', 'high court', 'tribunal', 'amendment', 'bill'
-      ],
-      welfare: [
-        'welfare', 'scheme', 'benefit', 'subsidy', 'allowance', 'grant', 'aid',
-        'support', 'assistance', 'relief', 'compensation', 'pension', 'insurance',
-        'social security', 'disability', 'widow', 'elderly', 'child'
-      ],
-      infrastructure: [
-        'infrastructure', 'road', 'bridge', 'transport', 'railway', 'airport',
-        'port', 'construction', 'development', 'project', 'tender', 'contract',
-        'electricity', 'water', 'sewage', 'metro', 'bus'
-      ],
-      agriculture: [
-        'agriculture', 'farmer', 'crop', 'farming', 'irrigation', 'fertilizer',
-        'seed', 'harvest', 'rural', 'village', 'kisan', 'mandi', 'procurement',
-        'subsidy', 'loan', 'weather', 'drought', 'flood'
-      ]
+      health: {
+        primary: ['health', 'medical', 'hospital', 'doctor', 'medicine', 'vaccine', 'covid', 'disease', 'healthcare', 'clinic', 'treatment', 'patient', 'drug', 'pharmacy', 'ayush', 'medical college', 'nursing', 'ambulance'],
+        secondary: ['wellness', 'mental health', 'therapy', 'diagnosis', 'surgery', 'emergency'],
+        weight: 1.0
+      },
+      education: {
+        primary: ['education', 'school', 'college', 'university', 'student', 'exam', 'admission', 'scholarship', 'degree', 'certificate', 'academic', 'learning', 'teacher', 'faculty', 'curriculum', 'ugc', 'cbse', 'icse', 'board', 'entrance'],
+        secondary: ['study', 'research', 'training', 'course', 'syllabus', 'marks', 'grade'],
+        weight: 1.0
+      },
+      employment: {
+        primary: ['job', 'employment', 'recruitment', 'vacancy', 'career', 'hiring', 'work', 'salary', 'wage', 'pension', 'retirement', 'ssc', 'upsc', 'railway', 'government job', 'application', 'interview', 'selection', 'posting'],
+        secondary: ['employee', 'employer', 'staff', 'officer', 'clerk', 'manager', 'director'],
+        weight: 1.0
+      },
+      taxation: {
+        primary: ['tax', 'gst', 'income tax', 'return', 'refund', 'assessment', 'compliance', 'tds', 'advance tax', 'penalty', 'notice', 'audit', 'exemption', 'deduction', 'itr', 'pan', 'aadhaar'],
+        secondary: ['financial', 'revenue', 'duty', 'customs', 'excise', 'service tax'],
+        weight: 1.0
+      },
+      legal: {
+        primary: ['legal', 'court', 'law', 'act', 'rule', 'regulation', 'policy', 'order', 'judgment', 'case', 'litigation', 'advocate', 'lawyer', 'justice', 'supreme court', 'high court', 'tribunal', 'amendment', 'bill'],
+        secondary: ['rights', 'constitution', 'statute', 'ordinance', 'notification', 'circular'],
+        weight: 1.0
+      },
+      welfare: {
+        primary: ['welfare', 'scheme', 'benefit', 'subsidy', 'allowance', 'grant', 'aid', 'support', 'assistance', 'relief', 'compensation', 'pension', 'insurance', 'social security', 'disability', 'widow', 'elderly', 'child'],
+        secondary: ['help', 'care', 'protection', 'safety', 'security', 'family'],
+        weight: 1.0
+      },
+      infrastructure: {
+        primary: ['infrastructure', 'road', 'bridge', 'transport', 'railway', 'airport', 'port', 'construction', 'development', 'project', 'tender', 'contract', 'electricity', 'water', 'sewage', 'metro', 'bus'],
+        secondary: ['building', 'facility', 'maintenance', 'repair', 'upgrade', 'expansion'],
+        weight: 1.0
+      },
+      agriculture: {
+        primary: ['agriculture', 'farmer', 'crop', 'farming', 'irrigation', 'fertilizer', 'seed', 'harvest', 'rural', 'village', 'kisan', 'mandi', 'procurement', 'subsidy', 'loan'],
+        secondary: ['weather', 'drought', 'flood', 'soil', 'organic', 'pesticide', 'cattle'],
+        weight: 1.0
+      },
+      finance: {
+        primary: ['finance', 'bank', 'banking', 'loan', 'credit', 'investment', 'budget', 'fund', 'money', 'financial', 'economic', 'economy', 'market', 'stock', 'bond'],
+        secondary: ['interest', 'deposit', 'account', 'transaction', 'payment', 'currency'],
+        weight: 1.0
+      },
+      environment: {
+        primary: ['environment', 'pollution', 'climate', 'green', 'forest', 'wildlife', 'conservation', 'renewable', 'solar', 'wind', 'waste', 'recycling'],
+        secondary: ['nature', 'ecology', 'sustainable', 'carbon', 'emission', 'clean'],
+        weight: 1.0
+      }
     };
 
-    // Check each category for matches
-    for (const [category, keywords] of Object.entries(categories)) {
-      const matchCount = keywords.filter(keyword => text.includes(keyword)).length;
-      if (matchCount > 0) {
-        return category;
+    // Calculate weighted scores for each category
+    const categoryScores = {};
+
+    for (const [category, data] of Object.entries(categories)) {
+      let score = 0;
+
+      // Primary keywords get full weight
+      const primaryMatches = data.primary.filter(keyword => text.includes(keyword)).length;
+      score += primaryMatches * 3 * data.weight;
+
+      // Secondary keywords get half weight
+      const secondaryMatches = data.secondary.filter(keyword => text.includes(keyword)).length;
+      score += secondaryMatches * 1.5 * data.weight;
+
+      // Bonus for title matches (more important)
+      const titleText = title.toLowerCase();
+      const titlePrimaryMatches = data.primary.filter(keyword => titleText.includes(keyword)).length;
+      const titleSecondaryMatches = data.secondary.filter(keyword => titleText.includes(keyword)).length;
+      score += (titlePrimaryMatches * 2) + (titleSecondaryMatches * 1);
+
+      if (score > 0) {
+        categoryScores[category] = score;
       }
     }
 
-    return 'general';
+    // Find the category with highest score
+    if (Object.keys(categoryScores).length === 0) {
+      return 'general';
+    }
+
+    const bestCategory = Object.entries(categoryScores)
+      .sort(([, a], [, b]) => b - a)[0][0];
+
+    // Require minimum score threshold to avoid weak categorization
+    const minScore = 2;
+    if (categoryScores[bestCategory] < minScore) {
+      return 'general';
+    }
+
+    return bestCategory;
   }
 
   calculateReadingTime(content) {

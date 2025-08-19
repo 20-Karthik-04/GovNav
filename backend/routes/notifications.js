@@ -9,7 +9,7 @@ const scraper = new GovernmentScraper();
 // Get all notifications for authenticated user (ALL database notifications)
 router.get('/', auth, async (req, res) => {
   try {
-    const { page = 1, limit = 20, category, search } = req.query;
+    const { page = 1, limit = 20, category, search, domain, sort } = req.query;
     const skip = (page - 1) * limit;
 
     // Show ALL notifications in database (not just user's own)
@@ -17,6 +17,10 @@ router.get('/', auth, async (req, res) => {
 
     if (category && category !== 'all') {
       query.category = category;
+    }
+
+    if (domain && domain !== 'all') {
+      query.sourceDomain = domain;
     }
 
     // Add search functionality
@@ -28,9 +32,17 @@ router.get('/', auth, async (req, res) => {
       ];
     }
 
+    // Determine sort order
+    let sortOptions = {};
+    if (sort === 'date') {
+      sortOptions = { publishedDate: -1 }; // Most recent first
+    } else {
+      sortOptions = { title: 1 }; // Alphabetical by default
+    }
+
     const notifications = await Notification.find(query)
       .populate('scrapedBy', 'firstName lastName email')
-      .sort({ publishedDate: -1 })
+      .sort(sortOptions)
       .skip(skip)
       .limit(parseInt(limit));
 
@@ -89,6 +101,67 @@ router.post('/mark-checked', auth, async (req, res) => {
   } catch (error) {
     console.error('Mark checked error:', error);
     res.status(500).json({ message: 'Server error updating check timestamp' });
+  }
+});
+
+// Get notification statistics (all database data)
+router.get('/stats/summary', auth, async (req, res) => {
+  try {
+    const query = { isActive: true };
+
+    const totalNotifications = await Notification.countDocuments(query);
+    const todayNotifications = await Notification.countDocuments({
+      ...query,
+      createdAt: { $gte: new Date().setHours(0, 0, 0, 0) }
+    });
+
+    const categoryStats = await Notification.aggregate([
+      { $match: query },
+      { $group: { _id: '$category', count: { $sum: 1 } } },
+      { $sort: { _id: 1 } }
+    ]);
+
+    // Format response with proper category names and ensure all categories are included
+    const allCategories = [
+      'agriculture', 'education', 'employment', 'environment', 'finance',
+      'general', 'health', 'infrastructure', 'legal', 'taxation', 'welfare'
+    ];
+
+    const formattedStats = allCategories.map(category => {
+      const stat = categoryStats.find(s => s._id === category);
+      return {
+        category: category,
+        displayName: category.charAt(0).toUpperCase() + category.slice(1),
+        count: stat ? stat.count : 0
+      };
+    }).sort((a, b) => a.displayName.localeCompare(b.displayName));
+
+    res.json({
+      total: totalNotifications,
+      today: todayNotifications,
+      categories: formattedStats
+    });
+  } catch (error) {
+    console.error('Stats error:', error);
+    res.status(500).json({ message: 'Server error fetching statistics' });
+  }
+});
+
+// Get domains for user notifications
+router.get('/domains', auth, async (req, res) => {
+  try {
+    const domainStats = await Notification.aggregate([
+      { $match: { isActive: true } },
+      { $group: { _id: '$sourceDomain', count: { $sum: 1 } } },
+      { $sort: { _id: 1 } }
+    ]);
+
+    const domains = domainStats.map(stat => stat._id).filter(domain => domain);
+
+    res.json(domains);
+  } catch (error) {
+    console.error('Domains error:', error);
+    res.status(500).json({ message: 'Server error fetching domains' });
   }
 });
 
@@ -194,34 +267,6 @@ router.post('/scrape', auth, async (req, res) => {
       message: 'Error during scraping process',
       error: error.message
     });
-  }
-});
-
-// Get notification statistics (all database data)
-router.get('/stats/summary', auth, async (req, res) => {
-  try {
-    const query = { isActive: true };
-
-    const totalNotifications = await Notification.countDocuments(query);
-    const todayNotifications = await Notification.countDocuments({
-      ...query,
-      createdAt: { $gte: new Date().setHours(0, 0, 0, 0) }
-    });
-
-    const categoryStats = await Notification.aggregate([
-      { $match: query },
-      { $group: { _id: '$category', count: { $sum: 1 } } },
-      { $sort: { count: -1 } }
-    ]);
-
-    res.json({
-      total: totalNotifications,
-      today: todayNotifications,
-      categories: categoryStats
-    });
-  } catch (error) {
-    console.error('Stats error:', error);
-    res.status(500).json({ message: 'Server error fetching statistics' });
   }
 });
 

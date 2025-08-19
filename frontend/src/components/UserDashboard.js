@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import axios from '../config/axios';
 import './UserDashboard.css';
@@ -14,11 +14,13 @@ const UserDashboard = () => {
   const [newCount, setNewCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [totalCount, setTotalCount] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
   const [searchInput, setSearchInput] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [categories, setCategories] = useState([]);
+  const [selectedDomain, setSelectedDomain] = useState('all');
+  const [domains, setDomains] = useState([]);
+  const [sortBy, setSortBy] = useState('alphabetical');
 
   // Debounce search input
   useEffect(() => {
@@ -33,7 +35,8 @@ const UserDashboard = () => {
   useEffect(() => {
     fetchAllNotifications();
     fetchCategories();
-  }, [currentPage, searchTerm, selectedCategory]);
+    fetchDomains();
+  }, [currentPage, searchTerm, selectedCategory, selectedDomain, sortBy]);
 
   const fetchAllNotifications = async () => {
     try {
@@ -45,11 +48,13 @@ const UserDashboard = () => {
 
       if (searchTerm) params.append('search', searchTerm);
       if (selectedCategory !== 'all') params.append('category', selectedCategory);
+      if (selectedDomain !== 'all') params.append('domain', selectedDomain);
+      if (sortBy) params.append('sort', sortBy);
 
       const response = await axios.get(`/api/notifications?${params}`);
+      console.log('UserDashboard - Notifications response:', response.data);
       setNotifications(response.data.notifications);
       setTotalPages(response.data.pagination.totalPages);
-      setTotalCount(response.data.pagination.total);
       setLastUpdated(new Date());
     } catch (error) {
       console.error('Error fetching notifications:', error);
@@ -64,6 +69,16 @@ const UserDashboard = () => {
       setCategories(response.data.categories || []);
     } catch (error) {
       console.error('Error fetching categories:', error);
+    }
+  };
+
+
+  const fetchDomains = async () => {
+    try {
+      const response = await axios.get('/api/notifications/domains');
+      setDomains(response.data || []);
+    } catch (error) {
+      console.error('Error fetching domains:', error);
     }
   };
 
@@ -95,11 +110,6 @@ const UserDashboard = () => {
     }
   };
 
-  const handleSearch = (e) => {
-    e.preventDefault();
-    setSearchInput(e.target.value);
-  };
-
   const handleLogout = () => {
     logout();
   };
@@ -109,193 +119,181 @@ const UserDashboard = () => {
       {/* Header */}
       <div className="dashboard-header">
         <div className="header-content">
-          <div className="user-info">
-            <h1>Welcome, {user?.firstName}!</h1>
+          <div className="header-text">
+            <h1><i className="fas fa-user-circle"></i> Welcome, {user?.firstName}!</h1>
             <p>Stay updated with the latest government notifications</p>
+            <div className="user-badge">
+              <i className="fas fa-bell"></i> Government Notice Platform
+            </div>
           </div>
-          <div className="header-actions">
-            <button
-              onClick={checkForUpdates}
-              className="update-btn"
-              disabled={updating}
-            >
-              {updating ? 'Checking...' : '🔄 Check for Updates'}
-            </button>
-            <button onClick={handleLogout} className="logout-btn">
-              Logout
-            </button>
-          </div>
+          <button
+            onClick={checkForUpdates}
+            className="update-btn"
+            disabled={updating}
+          >
+            {updating ? (
+              <>
+                <span className="spinner"></span> Checking...
+              </>
+            ) : (
+              <>
+                <i className="fas fa-sync-alt"></i> Check for Updates
+              </>
+            )}
+          </button>
+          <button onClick={handleLogout} className="logout-btn">
+            <i className="fas fa-sign-out-alt"></i> Logout
+          </button>
         </div>
       </div>
 
-      {/* Stats Bar */}
-      <div className="stats-bar">
-        <div className="stat-item">
-          <span className="stat-label">Total Notifications:</span>
-          <span className="stat-value">{totalCount}</span>
+
+      {/* Search Row */}
+      <div className="dashboard-section">
+        <div className="section-header">
+          <h2><i className="fas fa-search"></i> Search Notifications</h2>
         </div>
-        {lastUpdated && (
-          <div className="stat-item">
-            <span className="stat-label">Last Updated:</span>
-            <span className="stat-value">{lastUpdated.toLocaleTimeString()}</span>
-          </div>
-        )}
-        {newCount > 0 && (
-          <div className="stat-item new-count">
-            <span className="stat-label">New:</span>
-            <span className="stat-value">+{newCount}</span>
-          </div>
-        )}
+
+        <div className="search-row">
+          <form onSubmit={(e) => e.preventDefault()} className="search-form">
+            <div className="form-group">
+              <label htmlFor="search"><i className="fas fa-search"></i> Search</label>
+              <input
+                type="text"
+                id="search"
+                placeholder="Search notifications..."
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                className="form-control"
+              />
+            </div>
+          </form>
+        </div>
       </div>
 
-      {/* Filters */}
-      <div className="filters-section">
-        <form onSubmit={handleSearch} className="search-form">
-          <input
-            type="text"
-            placeholder="Search notifications..."
-            value={searchInput}
-            onChange={handleSearch}
-            className="search-input"
-          />
-          <button type="submit" className="search-btn">Search</button>
-        </form>
+      {/* Category Breakdown */}
+      <div className="dashboard-section">
+        <div className="section-header">
+          <h2><i className="fas fa-tags"></i> Category Breakdown</h2>
+        </div>
 
-        <div className="category-filter">
-          <label htmlFor="category">Filter by category:</label>
+        <div className="notifications-filters">
           <select
-            id="category"
             value={selectedCategory}
             onChange={(e) => {
               setSelectedCategory(e.target.value);
               setCurrentPage(1);
             }}
+            className="form-control"
           >
             <option value="all">All Categories</option>
-            {categories.map((cat) => (
-              <option key={cat._id} value={cat._id}>
-                {cat._id} ({cat.count})
+            {categories.map((categoryData) => (
+              <option key={categoryData.category} value={categoryData.category}>
+                {categoryData.displayName} ({categoryData.count})
               </option>
             ))}
+          </select>
+
+          <select
+            value={selectedDomain}
+            onChange={(e) => {
+              setSelectedDomain(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="form-control"
+          >
+            <option value="all">All Domains</option>
+            {domains.map((domain) => (
+              <option key={domain} value={domain}>{domain}</option>
+            ))}
+          </select>
+
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className="form-control"
+          >
+            <option value="alphabetical">Alphabetical</option>
+            <option value="date">Date</option>
           </select>
         </div>
       </div>
 
       {/* Notifications by Categories */}
-      <div className="notifications-section">
-        <h2>📋 All Government Notifications</h2>
+      <div className="dashboard-section">
+        <div className="section-header">
+          <h2><i className="fas fa-file-alt"></i> All Government Notifications</h2>
+          <div className="section-info">
+            <span>Showing {notifications.length} notifications</span>
+          </div>
+        </div>
+
         {loading ? (
-          <div className="loading">Loading notifications...</div>
+          <div className="loading">
+            <i className="fas fa-spinner fa-spin"></i>
+            <p>Loading notifications...</p>
+          </div>
         ) : notifications.length === 0 ? (
           <div className="no-notifications">
+            <i className="fas fa-inbox"></i>
             <p>No notifications found matching your criteria.</p>
           </div>
         ) : (
           <>
-            {/* Group notifications by category */}
-            {categories.map((category) => {
-              const categoryNotifications = notifications.filter(n => n.category === category._id);
-              if (categoryNotifications.length === 0) return null;
-
-              return (
-                <div key={category._id} className="category-section">
-                  <h3 className="category-title">
-                    <span className={`category-badge ${category._id}`}>
-                      {category._id.toUpperCase()}
+            <div className="notifications-list">
+              {notifications.map((notification) => (
+                <div key={notification._id} className="notification-card">
+                  <div className="notification-header">
+                    <h4>{notification.title}</h4>
+                    <span className={`category-badge ${notification.category}`}>
+                      {notification.category ? notification.category.charAt(0).toUpperCase() + notification.category.slice(1) : 'General'}
                     </span>
-                    <span className="category-count">({categoryNotifications.length})</span>
-                  </h3>
+                  </div>
 
-                  <div className="notifications-list">
-                    {categoryNotifications.map((notification) => (
-                      <div key={notification._id} className="notification-card user">
-                        <div className="notification-header">
-                          <h4>{notification.title}</h4>
-                        </div>
+                  <p className="notification-summary">{notification.summary}</p>
 
-                        <p className="notification-summary">{notification.summary}</p>
+                  <div className="notification-meta">
+                    <div className="meta-item">
+                      <i className="fas fa-external-link-alt"></i>
+                      <span>{notification.sourceDomain}</span>
+                    </div>
+                    <div className="meta-item">
+                      <i className="fas fa-calendar"></i>
+                      <span>{new Date(notification.publishedDate).toLocaleDateString()}</span>
+                    </div>
+                    <div className="meta-item">
+                      <i className="fas fa-clock"></i>
+                      <span>{new Date(notification.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    </div>
+                  </div>
 
-                        <div className="notification-meta">
-                          <span className="source">📍 {notification.sourceDomain}</span>
-                          <span className="date">📅 {new Date(notification.publishedDate).toLocaleDateString()}</span>
-                          <span className="time">🕒 {new Date(notification.createdAt).toLocaleTimeString()}</span>
-                        </div>
-
-                        <div className="notification-actions">
-                          <a
-                            href={notification.sourceUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="view-original-btn"
-                          >
-                            View Original →
-                          </a>
-                        </div>
-                      </div>
-                    ))}
+                  <div className="notification-actions">
+                    <a
+                      href={notification.sourceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="source-link"
+                    >
+                      View Original <i className="fas fa-arrow-right"></i>
+                    </a>
                   </div>
                 </div>
-              );
-            })}
-
-            {/* Show uncategorized notifications */}
-            {(() => {
-              const uncategorized = notifications.filter(n => !categories.find(c => c._id === n.category));
-              if (uncategorized.length === 0) return null;
-
-              return (
-                <div className="category-section">
-                  <h3 className="category-title">
-                    <span className="category-badge general">UNCATEGORIZED</span>
-                    <span className="category-count">({uncategorized.length})</span>
-                  </h3>
-
-                  <div className="notifications-list">
-                    {uncategorized.map((notification) => (
-                      <div key={notification._id} className="notification-card user">
-                        <div className="notification-header">
-                          <h4>{notification.title}</h4>
-                        </div>
-
-                        <p className="notification-summary">{notification.summary}</p>
-
-                        <div className="notification-meta">
-                          <span className="source">📍 {notification.sourceDomain}</span>
-                          <span className="date">📅 {new Date(notification.publishedDate).toLocaleDateString()}</span>
-                          <span className="time">🕒 {new Date(notification.createdAt).toLocaleTimeString()}</span>
-                        </div>
-
-                        <div className="notification-actions">
-                          <a
-                            href={notification.sourceUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="view-original-btn"
-                          >
-                            View Original →
-                          </a>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })()}
+              ))}
+            </div>
 
             {/* Pagination Controls */}
             {totalPages > 1 && (
-              <div className="pagination-controls">
+              <div className="pagination">
                 <button
                   onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                   disabled={currentPage === 1}
                   className="pagination-btn"
                 >
-                  ← Previous
+                  <i className="fas fa-chevron-left"></i> Previous
                 </button>
 
                 <div className="pagination-info">
                   <span>Page {currentPage} of {totalPages}</span>
-                  <span className="pagination-total">({totalCount} total notifications)</span>
                 </div>
 
                 <button
@@ -303,7 +301,7 @@ const UserDashboard = () => {
                   disabled={currentPage === totalPages}
                   className="pagination-btn"
                 >
-                  Next →
+                  Next <i className="fas fa-chevron-right"></i>
                 </button>
               </div>
             )}
