@@ -172,9 +172,9 @@
   font-weight: 700;
   background-color: rgba(67, 97, 238);
   /* color: rgb(204, 160, 160); */
-  border-radius: 50px;
+  border-radius: 18px;
   padding: 5px;
-  margin: auto 50px;
+  margin: auto 80px;
 }
 
 .stat-subtext {
