@@ -27,6 +27,11 @@ router.post('/register', async (req, res) => {
     await user.save();
 
     // Generate JWT token
+    if (!process.env.JWT_SECRET) {
+      console.error('JWT_SECRET environment variable is not set');
+      return res.status(500).json({ message: 'Server configuration error' });
+    }
+    
     const token = jwt.sign(
       { userId: user._id },
       process.env.JWT_SECRET,
@@ -68,6 +73,11 @@ router.post('/login', async (req, res) => {
     }
 
     // Generate JWT token
+    if (!process.env.JWT_SECRET) {
+      console.error('JWT_SECRET environment variable is not set');
+      return res.status(500).json({ message: 'Server configuration error' });
+    }
+    
     const token = jwt.sign(
       { userId: user._id },
       process.env.JWT_SECRET,
