@@ -117,7 +117,6 @@ const LandingPage = () => {
               <div className="card-content">
                 <h3>User Portal</h3>
                 <p>Browse, search, and stay updated with government notifications</p>
-                <br></br>
                 <ul className="card-features">
                   <li><i className="fas fa-check"></i> Advanced search filters</li>
                   <li><i className="fas fa-check"></i> Category-based organization</li>
@@ -137,7 +136,6 @@ const LandingPage = () => {
               <div className="card-content">
                 <h3>New Account</h3>
                 <p>Create a new user account to access government notifications</p>
-                <br></br>
                 <ul className="card-features">
                   <li><i className="fas fa-check"></i> Quick registration</li>
                   <li><i className="fas fa-check"></i> Immediate access</li>

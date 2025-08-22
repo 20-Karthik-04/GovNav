@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import axios from '../config/axios';
 import './Login.css';
 
 const Login = () => {
@@ -13,7 +12,6 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
 
   const { login } = useAuth();
-  const navigate = useNavigate();
 
   const handleChange = (e) => {
     setFormData({

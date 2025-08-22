@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import axios from '../config/axios';
 import './UserDashboard.css';
@@ -10,8 +10,6 @@ const UserDashboard = () => {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState(null);
-  const [newCount, setNewCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
@@ -32,13 +30,7 @@ const UserDashboard = () => {
     return () => clearTimeout(timer);
   }, [searchInput]);
 
-  useEffect(() => {
-    fetchAllNotifications();
-    fetchCategories();
-    fetchDomains();
-  }, [currentPage, searchTerm, selectedCategory, selectedDomain, sortBy]);
-
-  const fetchAllNotifications = async () => {
+  const fetchAllNotifications = useCallback(async () => {
     try {
       setLoading(true);
       const params = new URLSearchParams({
@@ -55,32 +47,36 @@ const UserDashboard = () => {
       console.log('UserDashboard - Notifications response:', response.data);
       setNotifications(response.data.notifications);
       setTotalPages(response.data.pagination.totalPages);
-      setLastUpdated(new Date());
     } catch (error) {
       console.error('Error fetching notifications:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage, searchTerm, selectedCategory, selectedDomain, sortBy]);
 
-  const fetchCategories = async () => {
+  const fetchCategories = useCallback(async () => {
     try {
       const response = await axios.get('/api/notifications/stats/summary');
       setCategories(response.data.categories || []);
     } catch (error) {
       console.error('Error fetching categories:', error);
     }
-  };
+  }, []);
 
-
-  const fetchDomains = async () => {
+  const fetchDomains = useCallback(async () => {
     try {
       const response = await axios.get('/api/notifications/domains');
       setDomains(response.data || []);
     } catch (error) {
       console.error('Error fetching domains:', error);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchAllNotifications();
+    fetchCategories();
+    fetchDomains();
+  }, [fetchAllNotifications, fetchCategories, fetchDomains]);
 
   const checkForUpdates = async () => {
     try {
@@ -88,7 +84,6 @@ const UserDashboard = () => {
       const response = await axios.get('/api/notifications/updates');
 
       if (response.data.count > 0) {
-        setNewCount(response.data.count);
         // Refresh the main list to include new notifications
         setCurrentPage(1); // Reset to first page to see new items
         await fetchAllNotifications();
@@ -105,8 +100,6 @@ const UserDashboard = () => {
       alert('❌ Error checking for updates. Please try again.');
     } finally {
       setUpdating(false);
-      // Clear new count after a few seconds
-      setTimeout(() => setNewCount(0), 3000);
     }
   };
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import axios from '../config/axios';
 import './AdminDashboard.css';
@@ -29,18 +29,7 @@ const AdminDashboard = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      await fetchStats();
-      await fetchNotifications();
-      await fetchCategories();
-      await fetchDomains();
-    };
-
-    fetchData();
-  }, [currentPage, selectedCategory, sortBy, selectedDomain]);
-
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     try {
       setStatsLoading(true);
       const response = await axios.get('/api/admin/stats');
@@ -57,9 +46,9 @@ const AdminDashboard = () => {
     } finally {
       setStatsLoading(false);
     }
-  };
+  }, []);
 
-  const fetchNotifications = async () => {
+  const fetchNotifications = useCallback(async () => {
     try {
       const response = await axios.get(`/api/admin/notifications?page=${currentPage}&limit=20&category=${selectedCategory}&sort=${sortBy}&domain=${selectedDomain}`);
       setNotifications(response.data.notifications);
@@ -68,9 +57,9 @@ const AdminDashboard = () => {
     } catch (error) {
       console.error('Error fetching notifications:', error);
     }
-  };
+  }, [currentPage, selectedCategory, sortBy, selectedDomain]);
 
-  const fetchCategories = async () => {
+  const fetchCategories = useCallback(async () => {
     try {
       const response = await axios.get('/api/admin/categories');
       setCategories(response.data.categories || []);
@@ -78,16 +67,27 @@ const AdminDashboard = () => {
       console.error('Error fetching categories:', error);
       setCategories([]);
     }
-  };
+  }, []);
 
-  const fetchDomains = async () => {
+  const fetchDomains = useCallback(async () => {
     try {
       const response = await axios.get('/api/admin/domains');
       setDomains(response.data);
     } catch (error) {
       console.error('Error fetching domains:', error);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      await fetchStats();
+      await fetchNotifications();
+      await fetchCategories();
+      await fetchDomains();
+    };
+
+    fetchData();
+  }, [currentPage, selectedCategory, sortBy, selectedDomain, fetchNotifications, fetchStats, fetchCategories, fetchDomains]);
 
   const deleteNotification = async (id) => {
     if (!window.confirm('Are you sure you want to delete this notification?')) {

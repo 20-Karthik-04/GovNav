@@ -178,7 +178,7 @@ const Register = () => {
           </form>
 
           <div className="register-agreement">
-            <p>By creating an account, you agree to our <a href="#">Terms of Service</a> and <a href="#">Privacy Policy</a></p>
+            <p>By creating an account, you agree to our <a href="/terms" rel="noopener noreferrer">Terms of Service</a> and <a href="/privacy" rel="noopener noreferrer">Privacy Policy</a></p>
           </div>
 
           <div className="register-links">
