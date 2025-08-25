@@ -6,17 +6,13 @@
       "use": "@vercel/node"
     }
   ],
-  "functions": {
-    "server.js": {
-      "runtime": "nodejs18.x",
-      "maxDuration": 30,
-      "memory": 2048
-    }
-  },
   "routes": [
     {
       "src": "/(.*)",
       "dest": "/server.js"
     }
-  ]
+  ],
+  "env": {
+    "NODE_ENV": "production"
+  }
 }
