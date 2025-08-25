@@ -1,5 +1,6 @@
 const playwright = require("playwright-core");
-const { launchChromium } = require("playwright-aws-lambda");
+const chromium = require('@sparticuz/chromium');
+const puppeteer = require('puppeteer-core');
 
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
@@ -87,29 +88,50 @@ class GovernmentScraper {
     let browser;
 
     try {
-      // Use playwright-aws-lambda for serverless compatibility
-      browser = await launchChromium({
-        headless: true,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-gpu',
-          '--single-process'
-        ]
-      });
+      // Use puppeteer with chromium for Vercel serverless compatibility
+      const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL;
+      
+      if (isProduction) {
+        // Production/Vercel environment
+        browser = await puppeteer.launch({
+          args: chromium.args,
+          defaultViewport: chromium.defaultViewport,
+          executablePath: await chromium.executablePath(),
+          headless: chromium.headless,
+          ignoreHTTPSErrors: true,
+        });
+      } else {
+        // Local development
+        const { chromium: playwrightChromium } = require('playwright');
+        browser = await playwrightChromium.launch({
+          headless: true,
+          args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-gpu'
+          ]
+        });
+      }
 
-      const context = await browser.newContext({
-        userAgent: this.userAgent,
-        extraHTTPHeaders: {
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          'Accept-Language': 'en-US,en;q=0.5',
-          'Accept-Encoding': 'gzip, deflate',
-          'DNT': '1',
-          'Connection': 'keep-alive',
-          'Upgrade-Insecure-Requests': '1'
-        }
-      });
+      let context;
+      if (isProduction) {
+        // Puppeteer context for production
+        context = browser;
+      } else {
+        // Playwright context for development
+        context = await browser.newContext({
+          userAgent: this.userAgent,
+          extraHTTPHeaders: {
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate',
+            'DNT': '1',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1'
+          }
+        });
+      }
 
       while (this.urlQueue.length > 0 && this.crawledPages < this.maxPages) {
         const { url, depth } = this.urlQueue.shift();
@@ -121,7 +143,7 @@ class GovernmentScraper {
         console.log(`Crawling: ${url} (depth: ${depth})`);
 
         try {
-          const pageData = await this.scrapePage(context, url, depth);
+          const pageData = await this.scrapePage(context, url, depth, isProduction);
           allNotifications.push(...pageData.notifications);
 
           if (depth < this.maxDepth) {
@@ -174,8 +196,21 @@ class GovernmentScraper {
     }
   }
 
-  async scrapePage(context, url, depth) {
-    const page = await context.newPage();
+  async scrapePage(context, url, depth, isProduction = false) {
+    const page = isProduction ? await context.newPage() : await context.newPage();
+    
+    if (isProduction) {
+      // Set user agent for puppeteer
+      await page.setUserAgent(this.userAgent);
+      await page.setExtraHTTPHeaders({
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Accept-Encoding': 'gzip, deflate',
+        'DNT': '1',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1'
+      });
+    }
 
     try {
       console.log(`🌐 Fetching: ${url}`);

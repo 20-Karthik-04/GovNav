@@ -17,6 +17,7 @@ router.use((req, res, next) => {
 router.post('/scrape', adminAuth, async (req, res) => {
   console.log('Admin scrape endpoint hit - POST /api/admin/scrape');
   console.log('User:', req.user?.email, 'isAdmin:', req.user?.isAdmin, 'role:', req.user?.role);
+  
   try {
     const { url, maxDepth = 2, maxPages = 20 } = req.body;
 
@@ -25,11 +26,18 @@ router.post('/scrape', adminAuth, async (req, res) => {
     }
 
     console.log('Admin starting scrape for:', url);
+    console.log('Environment check - VERCEL:', process.env.VERCEL);
+    console.log('Environment check - NODE_ENV:', process.env.NODE_ENV);
 
     // Use the advanced crawler for comprehensive scraping
     const result = await scraper.crawlGovernmentSite(url, {
       maxDepth: parseInt(maxDepth),
       maxPages: parseInt(maxPages)
+    });
+
+    console.log('Scraping completed. Result:', {
+      notificationCount: result.notifications?.length || 0,
+      crawlStats: result.crawlStats
     });
 
     if (!result.notifications || result.notifications.length === 0) {
@@ -99,13 +107,27 @@ router.post('/scrape', adminAuth, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Admin scraping error:', error);
+    console.error('Admin scrape error:', error);
     console.error('Error stack:', error.stack);
-    res.status(500).json({
-      message: 'Error during admin scraping process',
+    
+    // More detailed error response for debugging
+    const errorResponse = {
+      message: 'Error occurred during scraping',
       error: error.message,
-      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
-    });
+      url: req.body.url,
+      environment: {
+        NODE_ENV: process.env.NODE_ENV,
+        VERCEL: process.env.VERCEL,
+        hasGeminiKey: !!process.env.GEMINI_API_KEY
+      }
+    };
+    
+    // Don't expose sensitive info in production
+    if (process.env.NODE_ENV !== 'production') {
+      errorResponse.stack = error.stack;
+    }
+    
+    res.status(500).json(errorResponse);
   }
 });
 

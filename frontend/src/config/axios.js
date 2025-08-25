@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // Set the base URL for all API requests
-axios.defaults.baseURL = process.env.REACT_APP_API_URL;
+axios.defaults.baseURL = process.env.REACT_APP_API_URL || 'https://gov-nav-backend.vercel.app';
 
 // Add request interceptor to include auth token
 axios.interceptors.request.use(
