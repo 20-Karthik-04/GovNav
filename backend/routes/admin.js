@@ -6,8 +6,17 @@ const adminAuth = require('../middleware/adminAuth');
 const router = express.Router();
 const scraper = new GovernmentScraper();
 
+// Debug middleware for admin routes
+router.use((req, res, next) => {
+  console.log(`Admin route hit: ${req.method} ${req.path}`);
+  console.log('User authenticated:', !!req.user);
+  next();
+});
+
 // Admin scrape endpoint - allows admin to scrape any website
 router.post('/scrape', adminAuth, async (req, res) => {
+  console.log('Admin scrape endpoint hit - POST /api/admin/scrape');
+  console.log('User:', req.user?.email, 'isAdmin:', req.user?.isAdmin, 'role:', req.user?.role);
   try {
     const { url, maxDepth = 2, maxPages = 20 } = req.body;
 
@@ -91,9 +100,11 @@ router.post('/scrape', adminAuth, async (req, res) => {
 
   } catch (error) {
     console.error('Admin scraping error:', error);
+    console.error('Error stack:', error.stack);
     res.status(500).json({
       message: 'Error during admin scraping process',
-      error: error.message
+      error: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });
