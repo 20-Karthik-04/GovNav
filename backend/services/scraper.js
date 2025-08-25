@@ -1,9 +1,11 @@
-const { chromium } = require('playwright');
+const playwright = require("playwright-core");
+const { launchChromium } = require("playwright-aws-lambda");
+
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 class GovernmentScraper {
   constructor() {
-    // Validate API key exists
+    // --- Your existing initialization code (unchanged) ---
     if (!process.env.GEMINI_API_KEY) {
       console.warn('GEMINI_API_KEY not found. AI summarization will use fallback method.');
       this.genAI = null;
@@ -20,7 +22,6 @@ class GovernmentScraper {
       }
     }
 
-    // Crawler state management
     this.visitedUrls = new Set();
     this.urlQueue = [];
     this.maxDepth = 2;
@@ -29,12 +30,10 @@ class GovernmentScraper {
     this.baseUrl = null;
     this.allowedDomains = new Set();
 
-    // Rate limiting for AI API
     this.aiRequestCount = 0;
     this.aiRequestWindow = Date.now();
-    this.maxAiRequestsPerMinute = 25; // Stay under 30 limit
+    this.maxAiRequestsPerMinute = 25;
 
-    // Legal compliance features
     this.robotsCache = new Map();
     this.crawlStats = {
       startTime: null,
@@ -45,9 +44,10 @@ class GovernmentScraper {
       robotsChecked: [],
       visitedDomains: new Set()
     };
+
     this.userAgent = 'CivicSphereBot/1.0 (Government Transparency Tool; contact: admin@civicsphere.com)';
-    this.governmentDelayMs = 3000; // 3 seconds for government sites
-    this.regularDelayMs = 1000; // 1 second for regular sites
+    this.governmentDelayMs = 3000;
+    this.regularDelayMs = 1000;
   }
 
   async crawlGovernmentSite(startUrl, options = {}) {
@@ -55,7 +55,7 @@ class GovernmentScraper {
       maxDepth = 3,
       maxPages = 50,
       allowedDomains = [],
-      delay = null // Will auto-detect based on domain
+      delay = null
     } = options;
 
     this.maxDepth = maxDepth;
@@ -63,29 +63,23 @@ class GovernmentScraper {
     this.baseUrl = new URL(startUrl);
     this.allowedDomains = new Set([this.baseUrl.hostname, ...allowedDomains]);
 
-    // Initialize crawl stats
     this.crawlStats.startTime = new Date();
     this.crawlStats.totalRequests = 0;
     this.crawlStats.successfulRequests = 0;
     this.crawlStats.failedRequests = 0;
     this.crawlStats.visitedDomains.add(this.baseUrl.hostname);
 
-    // Legal compliance check
-    console.log('🔍 Starting legal compliance checks...');
     await this.checkLegalCompliance(startUrl);
 
-    // Check robots.txt before crawling
     const robotsAllowed = await this.checkRobotsTxt(startUrl);
     if (!robotsAllowed) {
       throw new Error(`Crawling not allowed by robots.txt for ${this.baseUrl.hostname}`);
     }
 
-    // Initialize crawler
     this.visitedUrls.clear();
     this.urlQueue = [{ url: startUrl, depth: 0 }];
     this.crawledPages = 0;
 
-    // Determine appropriate delay
     const crawlDelay = delay || this.determineDelay(this.baseUrl.hostname);
     console.log(`⏱️ Using ${crawlDelay}ms delay for ${this.baseUrl.hostname}`);
 
@@ -93,9 +87,18 @@ class GovernmentScraper {
     let browser;
 
     try {
-      browser = await chromium.launch({ headless: true });
+      // Use playwright-aws-lambda for serverless compatibility
+      browser = await launchChromium({
+        headless: true,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-gpu',
+          '--single-process'
+        ]
+      });
 
-      // Create context with User-Agent
       const context = await browser.newContext({
         userAgent: this.userAgent,
         extraHTTPHeaders: {
@@ -121,7 +124,6 @@ class GovernmentScraper {
           const pageData = await this.scrapePage(context, url, depth);
           allNotifications.push(...pageData.notifications);
 
-          // Add new URLs to queue if within depth limit
           if (depth < this.maxDepth) {
             pageData.links.forEach(link => {
               if (!this.visitedUrls.has(link) && this.isValidUrl(link)) {
@@ -133,48 +135,35 @@ class GovernmentScraper {
           this.visitedUrls.add(url);
           this.crawledPages++;
 
-          // Respectful delay between requests
           if (crawlDelay > 0) {
             console.log(`⏳ Waiting ${crawlDelay}ms before next request...`);
             await new Promise(resolve => setTimeout(resolve, crawlDelay));
           }
 
           this.crawlStats.successfulRequests++;
-
         } catch (error) {
           console.error(`❌ Error crawling ${url}:`, error.message);
-          this.visitedUrls.add(url); // Mark as visited to avoid retry
+          this.visitedUrls.add(url);
           this.crawlStats.failedRequests++;
         }
 
         this.crawlStats.totalRequests++;
       }
 
-      // Finalize crawl stats
       this.crawlStats.endTime = new Date();
       const duration = this.crawlStats.endTime - this.crawlStats.startTime;
-
-      console.log('📊 Crawl Statistics:');
-      console.log(`   Duration: ${Math.round(duration / 1000)}s`);
-      console.log(`   Total Requests: ${this.crawlStats.totalRequests}`);
-      console.log(`   Successful: ${this.crawlStats.successfulRequests}`);
-      console.log(`   Failed: ${this.crawlStats.failedRequests}`);
-      console.log(`   Pages Crawled: ${this.crawledPages}`);
-      console.log(`   Notifications Found: ${allNotifications.length}`);
-      console.log(`   Domains Visited: ${Array.from(this.crawlStats.visitedDomains).join(', ')}`);
 
       return {
         notifications: allNotifications,
         crawlStats: {
           ...this.crawlStats,
-          duration: duration,
+          duration,
           totalPages: this.crawledPages,
           totalUrls: this.visitedUrls.size,
           notificationsFound: allNotifications.length,
           visitedDomains: Array.from(this.crawlStats.visitedDomains)
         }
       };
-
     } catch (error) {
       console.error('Crawling error:', error);
       throw new Error(`Failed to crawl government site: ${error.message}`);
